@@ -1716,7 +1716,6 @@ def Log(category, message):
 		f.write(log)
 
 
-@app.before_first_request
 def ensure_db_and_admin():
 	"""Ensure DB tables exist and create default admin if missing.
 
@@ -1743,6 +1742,22 @@ def ensure_db_and_admin():
 				print("Admin account already exists at first request; password left unchanged")
 	except Exception as e:
 		Log("server", f"ensure_db_and_admin failed: {str(e)}")
+
+# Register ensure_db_and_admin for the application's lifecycle.
+# Flask 3 removed `before_first_request` in favor of `before_serving`.
+# Support both if available, otherwise run at import time inside app context
+# so WSGI servers (gunicorn) will still have tables/admin created.
+try:
+	if hasattr(app, 'before_first_request'):
+		app.before_first_request(ensure_db_and_admin)
+	elif hasattr(app, 'before_serving'):
+		app.before_serving(ensure_db_and_admin)
+	else:
+		# Fallback: call once at import time
+		with app.app_context():
+			ensure_db_and_admin()
+except Exception as e:
+	Log("server", f"Failed to register/execute ensure_db_and_admin: {str(e)}")
 
 if __name__ == '__main__':
 	Log("server", "Starting server...")
