@@ -1699,6 +1699,35 @@ def Log(category, message):
 		log = f"{time} - [{category.upper()}] - {message} \n"
 		f.write(log)
 
+
+@app.before_first_request
+def ensure_db_and_admin():
+	"""Ensure DB tables exist and create default admin if missing.
+
+	This runs on the first request in WSGI deployments (e.g. gunicorn).
+	Kept lightweight: only creates tables and the default admin if absent.
+	"""
+	try:
+		with app.app_context():
+			db.create_all()
+			fixed_password = "admin1906303937"
+			# store as bcrypt hash for compatibility when creating a new admin
+			hashed = bcrypt.generate_password_hash(fixed_password).decode('utf-8')
+			admin_obj = Admin.query.filter_by(username="admin").first()
+			if admin_obj is None:
+				newAdmin = Admin(username="admin", password=hashed, rank=0)
+				db.session.add(newAdmin)
+				db.session.commit()
+				Log("server", "Created admin account at first request with fixed password (hashed)")
+				# DEBUG: print admin credentials to console when created during first request — remove this in production
+				print(f"Admin account created at first request. Username: admin, Password: {fixed_password}")  # TODO: DELETE BEFORE PRODUCTION
+			else:
+				# admin exists — do not change its password
+				Log("server", "Admin account already exists at first request; password left unchanged")
+				print("Admin account already exists at first request; password left unchanged")
+	except Exception as e:
+		Log("server", f"ensure_db_and_admin failed: {str(e)}")
+
 if __name__ == '__main__':
 	Log("server", "Starting server...")
 
@@ -1740,29 +1769,3 @@ if __name__ == '__main__':
 
 	# Start the Flask development server
 	app.run(debug=args.debug, port=args.port)
-
-
-	# Ensure DB + admin exist when app is run under WSGI (before first request)
-	@app.before_first_request
-	def ensure_db_and_admin():
-		# This runs in the application context when the first request is handled
-		try:
-			with app.app_context():
-				db.create_all()
-				fixed_password = "admin1906303937"
-				# store as bcrypt hash for compatibility when creating a new admin
-				hashed = bcrypt.generate_password_hash(fixed_password).decode('utf-8')
-				admin_obj = Admin.query.filter_by(username="admin").first()
-				if admin_obj is None:
-					newAdmin = Admin(username="admin", password=hashed, rank=0)
-					db.session.add(newAdmin)
-					db.session.commit()
-					Log("server", "Created admin account at first request with fixed password (hashed)")
-					# DEBUG: print admin credentials to console when created during first request — remove this in production
-					print(f"Admin account created at first request. Username: admin, Password: {fixed_password}")  # TODO: DELETE BEFORE PRODUCTION
-				else:
-					# admin exists — do not change its password
-					Log("server", "Admin account already exists at first request; password left unchanged")
-					print("Admin account already exists at first request; password left unchanged")
-		except Exception as e:
-			Log("server", f"ensure_db_and_admin failed: {str(e)}")
