@@ -52,7 +52,6 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'AdminPage'
 
-
 @app.before_request
 def enforce_admin_login():
 	# Force login for any /admin routes except the login page and logout
@@ -1700,7 +1699,6 @@ def Log(category, message):
 		f.write(log)
 
 
-@app.before_first_request
 def ensure_db_and_admin():
 	"""Ensure DB tables exist and create default admin if missing.
 
@@ -1727,6 +1725,16 @@ def ensure_db_and_admin():
 				print("Admin account already exists at first request; password left unchanged")
 	except Exception as e:
 		Log("server", f"ensure_db_and_admin failed: {str(e)}")
+
+# Some WSGI servers (or Flask versions) may not provide the
+# `before_first_request` decorator at import-time; call the
+# initializer explicitly so tables/admin are created when the
+# module is imported (e.g. by gunicorn workers).
+try:
+	with app.app_context():
+		ensure_db_and_admin()
+except Exception as e:
+	Log("server", f"ensure_db_and_admin (import-time) failed: {str(e)}")
 
 if __name__ == '__main__':
 	Log("server", "Starting server...")
