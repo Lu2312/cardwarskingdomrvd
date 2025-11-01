@@ -556,42 +556,82 @@ def AdminPlayerGameEdit(player):
 		return make_response(f"Internal error updating game data: {str(e)}", 500)
 
 def DecryptGameData(game:str):
+	"""Parse a player's saved game blob.
 
-	if game is None or game == b"" or game == b" ":
+	This function accepts either bytes or str. It attempts the following, in order:
+	1. If the input is plain JSON (starts with '{' or '['), try to json.loads it.
+	2. If the input contains the marker '&data=', extract the following base64 string,
+	   base64-decode it, gunzip it, clean a few common JSON corruption patterns and parse JSON.
+	3. If the input looks like raw base64+gzip (no marker), try to decode & gunzip it.
+
+	Returns a parsed Python object on success, or None on failure.
+	"""
+
+	if game is None:
 		return None
 
-	# Decrypt
-	input_data = game
-	# if the data is bytes that already contains JSON (not encrypted), try to decode
+	# Normalize to string for inspection
+	input_str = None
+	if isinstance(game, bytes):
+		try:
+			input_str = game.decode('utf-8')
+		except Exception:
+			Log('admin', 'Failed to decode game data bytes to UTF-8')
+			return None
+	elif isinstance(game, str):
+		input_str = game
+	else:
+		# Unexpected type: coerce to str
+		try:
+			input_str = str(game)
+		except Exception:
+			return None
+
+	s = input_str.strip()
+
+	# Quick JSON check: if it already looks like JSON, try to parse it directly
+	if s.startswith('{') or s.startswith('[') or (s.startswith('"') and (len(s) > 1 and (s[1] == '{' or s[1] == '['))):
+		# remove surrounding quotes if present and unescape common escapes
+		if s.startswith('"') and s.endswith('"'):
+			s = s[1:-1]
+			s = s.replace('\\"', '"')
+		try:
+			return json.loads(s)
+		except Exception:
+			# not plain JSON; continue to try encoded formats
+			pass
+
+	# Look for marker &data=
+	index = s.find('&data=')
+	encoded_part = None
+	if index != -1:
+		encoded_part = s[index + 6:]
+	else:
+		# no marker; maybe the entire string is raw base64+gzip
+		encoded_part = s
+
+	# Try base64 decode + gzip decompress
 	try:
-		input_str = input_data.decode("utf-8")
+		array = base64.b64decode(encoded_part)
 	except Exception:
-		Log("admin", "Failed to decode game data bytes to UTF-8")
-		return None
-
-	index = input_str.find("&data=")
-	if index == -1:
-		Log("admin", "No encoded data marker found in game data")
-		return None
-
-	encoded_data = input_str[index + 6 :]
-	try:
-		array = base64.b64decode(encoded_data)
-	except Exception:
-		Log("admin", "Base64 decode failed for game data")
+		Log('admin', 'Base64 decode failed for game data')
 		return None
 
 	try:
 		with gzip.GzipFile(fileobj=BytesIO(array), mode='rb') as gz:
-			decoded_data = gz.read().decode("utf-8")
+			decoded_data = gz.read().decode('utf-8')
 	except Exception:
-		Log("admin", "Failed to decrypt game data")
+		Log('admin', 'Failed to gunzip/decompress game data')
 		return None
 
-	# attempt to clean json
+	# attempt to clean json (common simple repairs)
 	decoded_data = decoded_data.replace(',}', '}').replace(',],', '],').replace(',]', ']').replace(',,', ',')
 
-	return json.loads(decoded_data)
+	try:
+		return json.loads(decoded_data)
+	except Exception:
+		Log('admin', 'Decoded game data is not valid JSON')
+		return None
 
 @login_required
 @app.route("/admin/players/<player>/<action>")
