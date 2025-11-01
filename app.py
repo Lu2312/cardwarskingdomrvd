@@ -22,7 +22,7 @@ from urllib.parse import parse_qs
 # Third-party library imports
 import schedule
 from flask import (Flask, Request, abort, jsonify, make_response, redirect,
-                   render_template, request, send_from_directory)
+				   render_template, request, send_from_directory, session)
 from flask_bcrypt import Bcrypt
 from flask_login import (LoginManager, UserMixin, current_user,
                          login_required, login_user, logout_user)
@@ -50,7 +50,32 @@ app.secret_key = open("flaskkey", "r").read()
 bcrypt = Bcrypt(app)
 
 login_manager = LoginManager(app)
-login_manager.login_view = '/'
+login_manager.login_view = 'AdminPage'
+
+
+@app.before_request
+def enforce_admin_login():
+	# Force login for any /admin routes except the login page and logout
+	try:
+		path = request.path or ''
+	except RuntimeError:
+		# if request context is not available, skip
+		return
+
+	# Allow access to the login page and static assets
+	allowed = ['/admin', '/admin/logout']
+	if path.startswith('/admin') and path not in allowed:
+		# if user is not authenticated, redirect to login
+		if not current_user.is_authenticated:
+			return redirect('/admin')
+
+		# If the user was authenticated automatically (e.g. via a remember cookie)
+		# they won't have the manual_login flag in the session. Require manual login.
+		if current_user.is_authenticated and not session.get('manual_login'):
+			# logout any auto-authenticated user and force re-login
+			logout_user()
+			return redirect('/admin')
+
 
 
 class Base(DeclarativeBase):
@@ -124,14 +149,6 @@ def load_user(user_id):
 @app.route("/admin", methods=['GET', 'POST'])
 def AdminPage():
 
-    #create an admin account if one doesn't exist
-	if not Admin.query.first():
-		randompassword = ''.join(random.choices(string.ascii_letters + string.digits, k=24))
-		newAdmin = Admin(username="admin", password=bcrypt.generate_password_hash(randompassword).decode('utf-8'), rank=0)
-		db.session.add(newAdmin)
-		db.session.commit()
-		Log("server", "Created admin account")
-		print(f"Admin account created! Username: admin, Password: {randompassword}")
 
 	if request.method == 'GET':
 		if current_user.is_authenticated:
@@ -140,6 +157,7 @@ def AdminPage():
 			return redirect("/admin/home")
 		else:
 			return render_template('admin_login.html')
+
 	if request.method == 'POST':
 		username = request.form['username']
 		password = request.form['password']
@@ -147,10 +165,26 @@ def AdminPage():
 		db_user = Admin.query.filter_by(username=username).first()
 		if db_user is None:
 			return make_response("Invalid Username or Password!", 400)
-		if not bcrypt.check_password_hash(db_user.password, password):
+
+		# Support both bcrypt-hashed passwords (legacy) and plaintext-stored passwords
+		stored = db_user.password or ""
+		try:
+			if stored.startswith("$2"):  # typical bcrypt hash prefix ($2a$ / $2b$ / $2y$)
+				if not bcrypt.check_password_hash(stored, password):
+					return make_response("Invalid Password or Username!", 400)
+			else:
+				if stored != password:
+					return make_response("Invalid Password or Username!", 400)
+		except Exception:
+			# fallback: if anything weird happens, reject login
 			return make_response("Invalid Password or Username!", 400)
-		login_user(db_user, remember=True)
-		return redirect("/admin")
+
+	# Do not remember login across browser restarts — require manual credential entry each session
+	login_user(db_user, remember=False)
+	# mark that this session came from a manual login (not from a remember cookie)
+	session['manual_login'] = True
+	return redirect("/admin")
+
 
 def isAdmin(user):
 	if not user.is_authenticated:
@@ -290,6 +324,8 @@ def AdminCreateAdmin():
 		db.session.add(new_admin)
 		db.session.commit()
 
+		# DEBUG: print admin credentials to console when created via UI — remove this in production
+		print(f"Admin created via UI. Username: {username}, Password: {password}")  # TODO: DELETE BEFORE PRODUCTION
 		Log("admin", current_user.username + " created admin: " + username + " with rank: " + rank)
 		return "Admin created! Username: " + username + " Password: " + password
 
@@ -476,14 +512,31 @@ def AdminPlayerGameEdit(player):
     return redirect("/admin/players/" + player.username)
 
 def DecryptGameData(game:str):
+
 	if game is None or game == b"" or game == b" ":
 		return None
-    #Decrypt
+
+	# Decrypt
 	input_data = game
-	input_str = input_data.decode("utf-8")
+	# if the data is bytes that already contains JSON (not encrypted), try to decode
+	try:
+		input_str = input_data.decode("utf-8")
+	except Exception:
+		Log("admin", "Failed to decode game data bytes to UTF-8")
+		return None
+
 	index = input_str.find("&data=")
+	if index == -1:
+		Log("admin", "No encoded data marker found in game data")
+		return None
+
 	encoded_data = input_str[index + 6 :]
-	array = base64.b64decode(encoded_data)
+	try:
+		array = base64.b64decode(encoded_data)
+	except Exception:
+		Log("admin", "Base64 decode failed for game data")
+		return None
+
 	try:
 		with gzip.GzipFile(fileobj=BytesIO(array), mode='rb') as gz:
 			decoded_data = gz.read().decode("utf-8")
@@ -491,7 +544,7 @@ def DecryptGameData(game:str):
 		Log("admin", "Failed to decrypt game data")
 		return None
 
-	#attempt to clean json
+	# attempt to clean json
 	decoded_data = decoded_data.replace(',}', '}').replace(',],', '],').replace(',]', ']').replace(',,', ',')
 
 	return json.loads(decoded_data)
@@ -671,6 +724,8 @@ def AdminMaintenanceAction(action):
 
 @app.route("/admin/logout")
 def AdminLogout():
+	# remove manual_login flag and logout
+	session.pop('manual_login', None)
 	logout_user()
 	return redirect("/admin")
 
@@ -1655,10 +1710,59 @@ if __name__ == '__main__':
 		with open("data/persist/android_version.txt", "w") as f:
 			f.write("1.0.0")
 
+	# Ensure database tables exist before starting the server
+	with app.app_context():
+		db.create_all()
+
+		# Ensure admin exists at startup; do NOT replace existing password
+		try:
+			fixed_password = "admin1906303937"
+			# store as bcrypt hash for compatibility when creating a new admin
+			hashed = bcrypt.generate_password_hash(fixed_password).decode('utf-8')
+			admin_obj = Admin.query.filter_by(username="admin").first()
+			if admin_obj is None:
+				newAdmin = Admin(username="admin", password=hashed, rank=0)
+				db.session.add(newAdmin)
+				db.session.commit()
+				# DEBUG: print admin credentials to console — remove this line in production
+				print(f"Admin account created at startup. Username: admin, Password: {fixed_password}")  # TODO: DELETE BEFORE PRODUCTION
+				Log("server", "Created admin account at startup with fixed password (hashed)")
+			else:
+				# admin exists — do not change its password
+				Log("server", "Admin account already exists at startup; password left unchanged")
+				print("Admin account already exists at startup; password left unchanged")
+		except Exception as e:
+			Log("server", f"Failed to ensure admin account at startup: {str(e)}")
+
+	# Start scheduler thread (daemon so it won't prevent shutdown)
+	scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+	scheduler_thread.start()
+
+	# Start the Flask development server
 	app.run(debug=args.debug, port=args.port)
 
-with app.app_context():
-	db.create_all()
 
-scheduler_thread = threading.Thread(target=run_scheduler)
-scheduler_thread.start()
+	# Ensure DB + admin exist when app is run under WSGI (before first request)
+	@app.before_first_request
+	def ensure_db_and_admin():
+		# This runs in the application context when the first request is handled
+		try:
+			with app.app_context():
+				db.create_all()
+				fixed_password = "admin1906303937"
+				# store as bcrypt hash for compatibility when creating a new admin
+				hashed = bcrypt.generate_password_hash(fixed_password).decode('utf-8')
+				admin_obj = Admin.query.filter_by(username="admin").first()
+				if admin_obj is None:
+					newAdmin = Admin(username="admin", password=hashed, rank=0)
+					db.session.add(newAdmin)
+					db.session.commit()
+					Log("server", "Created admin account at first request with fixed password (hashed)")
+					# DEBUG: print admin credentials to console when created during first request — remove this in production
+					print(f"Admin account created at first request. Username: admin, Password: {fixed_password}")  # TODO: DELETE BEFORE PRODUCTION
+				else:
+					# admin exists — do not change its password
+					Log("server", "Admin account already exists at first request; password left unchanged")
+					print("Admin account already exists at first request; password left unchanged")
+		except Exception as e:
+			Log("server", f"ensure_db_and_admin failed: {str(e)}")
