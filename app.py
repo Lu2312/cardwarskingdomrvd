@@ -482,33 +482,50 @@ def AdminPlayerGame(player):
 @login_required
 @app.route("/admin/players/<player>/game/edit", methods=['POST'])
 def AdminPlayerGameEdit(player):
-    if not isAdmin(current_user):
-        return abort(404)
+	"""Update a player's saved game blob from the admin UI.
 
-    player = Player.query.filter_by(username=player).first()
+	This handler now captures and logs exceptions with a full traceback
+	and returns a helpful error message (temporary for debugging).
+	"""
+	if not isAdmin(current_user):
+		return abort(404)
 
-    if player is None:
-        return make_response("No player found!", 404)
+	try:
+		player_obj = Player.query.filter_by(username=player).first()
 
-    # Get game data from POST request
-    game = request.form.get('player_game')
-    if game is None:
-        return make_response("No game data provided!", 400)
+		if player_obj is None:
+			return make_response("No player found!", 404)
 
-    print("Received game data:", game)
+		# Get game data from POST request
+		game = request.form.get('player_game')
+		if game is None:
+			return make_response("No game data provided!", 400)
 
-    try:
-        # Update game data
-        player.game = game
-        db.session.commit()
-        print("Game data updated successfully.")
-    except Exception as e:
-        db.session.rollback()  # Rollback if something goes wrong
-        print("Error updating game data:", str(e))
-        return make_response("Failed to update game data.", 500)
+		# Debug log (can be removed in production)
+		print("Received game data length:", len(game) if hasattr(game, '__len__') else 'unknown')
 
-    Log("admin", current_user.username + " edited game data for player: " + player.username)
-    return redirect("/admin/players/" + player.username)
+		# Update game data
+		player_obj.game = game
+		db.session.commit()
+		print("Game data updated successfully.")
+
+		Log("admin", current_user.username + " edited game data for player: " + player_obj.username)
+		return redirect("/admin/players/" + player_obj.username)
+
+	except Exception as e:
+		# Roll back and log full traceback for debugging
+		try:
+			db.session.rollback()
+		except Exception:
+			pass
+		import traceback
+		tb = traceback.format_exc()
+		Log("admin", f"AdminPlayerGameEdit failed for {player}: {str(e)}")
+		Log("admin", tb)
+		print("AdminPlayerGameEdit exception:", str(e))
+		print(tb)
+		# Return error detail to admin (temporary). In production, return a generic message.
+		return make_response(f"Internal error updating game data: {str(e)}", 500)
 
 def DecryptGameData(game:str):
 
@@ -1699,6 +1716,7 @@ def Log(category, message):
 		f.write(log)
 
 
+@app.before_first_request
 def ensure_db_and_admin():
 	"""Ensure DB tables exist and create default admin if missing.
 
@@ -1725,16 +1743,6 @@ def ensure_db_and_admin():
 				print("Admin account already exists at first request; password left unchanged")
 	except Exception as e:
 		Log("server", f"ensure_db_and_admin failed: {str(e)}")
-
-# Some WSGI servers (or Flask versions) may not provide the
-# `before_first_request` decorator at import-time; call the
-# initializer explicitly so tables/admin are created when the
-# module is imported (e.g. by gunicorn workers).
-try:
-	with app.app_context():
-		ensure_db_and_admin()
-except Exception as e:
-	Log("server", f"ensure_db_and_admin (import-time) failed: {str(e)}")
 
 if __name__ == '__main__':
 	Log("server", "Starting server...")
