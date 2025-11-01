@@ -314,19 +314,47 @@ def AdminCreateAdmin():
 	if request.method == 'GET':
 		return render_template('admin_createadmin.html')
 	if request.method == 'POST':
-		username = request.form['username']
-		rank = request.form['rank']
+		# Sanitize and validate input
+		username = request.form.get('username', '').strip()
+		rank = request.form.get('rank', '').strip()
+		username = re.sub(r'[^a-zA-Z0-9_-]', '', username)
 
-		#create random password
+		if username == '':
+			return make_response("Invalid username", 400)
+
+		try:
+			rank_int = int(rank)
+		except Exception:
+			return make_response("Invalid rank", 400)
+
+		# check for existing admin with same username
+		if Admin.query.filter_by(username=username).first() is not None:
+			return make_response("Admin with that username already exists", 400)
+
+		# create random password
 		password = secrets.token_urlsafe(24)
-		new_admin = Admin(username=username, password=bcrypt.generate_password_hash(password).decode('utf-8'), rank=int(rank))
-		db.session.add(new_admin)
-		db.session.commit()
 
-		# DEBUG: print admin credentials to console when created via UI — remove this in production
-		print(f"Admin created via UI. Username: {username}, Password: {password}")  # TODO: DELETE BEFORE PRODUCTION
-		Log("admin", current_user.username + " created admin: " + username + " with rank: " + rank)
-		return "Admin created! Username: " + username + " Password: " + password
+		try:
+			new_admin = Admin(username=username, password=bcrypt.generate_password_hash(password).decode('utf-8'), rank=rank_int)
+			db.session.add(new_admin)
+			db.session.commit()
+
+			# DEBUG: print admin credentials to console when created via UI — remove this in production
+			print(f"Admin created via UI. Username: {username}, Password: {password}")  # TODO: DELETE BEFORE PRODUCTION
+			Log("admin", current_user.username + " created admin: " + username + " with rank: " + str(rank_int))
+			return "Admin created! Username: " + username + " Password: " + password
+		except Exception as e:
+			try:
+				db.session.rollback()
+			except Exception:
+				pass
+			import traceback
+			tb = traceback.format_exc()
+			Log("admin", f"AdminCreateAdmin failed: {str(e)}")
+			Log("admin", tb)
+			print("AdminCreateAdmin exception:", str(e))
+			print(tb)
+			return make_response(f"Internal error creating admin: {str(e)}", 500)
 
 @login_required
 @app.route("/admin/players")
