@@ -314,19 +314,47 @@ def AdminCreateAdmin():
 	if request.method == 'GET':
 		return render_template('admin_createadmin.html')
 	if request.method == 'POST':
-		username = request.form['username']
-		rank = request.form['rank']
+		# Sanitize and validate input
+		username = request.form.get('username', '').strip()
+		rank = request.form.get('rank', '').strip()
+		username = re.sub(r'[^a-zA-Z0-9_-]', '', username)
 
-		#create random password
+		if username == '':
+			return make_response("Invalid username", 400)
+
+		try:
+			rank_int = int(rank)
+		except Exception:
+			return make_response("Invalid rank", 400)
+
+		# check for existing admin with same username
+		if Admin.query.filter_by(username=username).first() is not None:
+			return make_response("Admin with that username already exists", 400)
+
+		# create random password
 		password = secrets.token_urlsafe(24)
-		new_admin = Admin(username=username, password=bcrypt.generate_password_hash(password).decode('utf-8'), rank=int(rank))
-		db.session.add(new_admin)
-		db.session.commit()
 
-		# DEBUG: print admin credentials to console when created via UI — remove this in production
-		print(f"Admin created via UI. Username: {username}, Password: {password}")  # TODO: DELETE BEFORE PRODUCTION
-		Log("admin", current_user.username + " created admin: " + username + " with rank: " + rank)
-		return "Admin created! Username: " + username + " Password: " + password
+		try:
+			new_admin = Admin(username=username, password=bcrypt.generate_password_hash(password).decode('utf-8'), rank=rank_int)
+			db.session.add(new_admin)
+			db.session.commit()
+
+			# DEBUG: print admin credentials to console when created via UI — remove this in production
+			print(f"Admin created via UI. Username: {username}, Password: {password}")  # TODO: DELETE BEFORE PRODUCTION
+			Log("admin", current_user.username + " created admin: " + username + " with rank: " + str(rank_int))
+			return "Admin created! Username: " + username + " Password: " + password
+		except Exception as e:
+			try:
+				db.session.rollback()
+			except Exception:
+				pass
+			import traceback
+			tb = traceback.format_exc()
+			Log("admin", f"AdminCreateAdmin failed: {str(e)}")
+			Log("admin", tb)
+			print("AdminCreateAdmin exception:", str(e))
+			print(tb)
+			return make_response(f"Internal error creating admin: {str(e)}", 500)
 
 @login_required
 @app.route("/admin/players")
@@ -338,6 +366,12 @@ def AdminPlayers():
 
 	#convert player to dict
 	players = [player.as_dict() for player in players]
+
+	# Convert any bytes fields to string (e.g., multiplayer_name, game, etc.)
+	for player in players:
+		for key, value in player.items():
+			if isinstance(value, bytes):
+				player[key] = value.decode('utf-8')
 
 	#remove any players that do not have a multiplayer name
 	players = [player for player in players if player["game"] != None and player["leader_level"] != None]
@@ -355,7 +389,7 @@ def AdminPlayers():
 	sortQuery = request.args.get('sort')
 
 	if sortQuery is not None:
-		players = sorted(players, key=lambda player: player[sortQuery], reverse=True)
+		players = sorted(players, key=lambda player: str(player[sortQuery] or ''), reverse=True)
 	else:
 		players = players[::-1]
 
@@ -528,42 +562,82 @@ def AdminPlayerGameEdit(player):
 		return make_response(f"Internal error updating game data: {str(e)}", 500)
 
 def DecryptGameData(game:str):
+	"""Parse a player's saved game blob.
 
-	if game is None or game == b"" or game == b" ":
+	This function accepts either bytes or str. It attempts the following, in order:
+	1. If the input is plain JSON (starts with '{' or '['), try to json.loads it.
+	2. If the input contains the marker '&data=', extract the following base64 string,
+	   base64-decode it, gunzip it, clean a few common JSON corruption patterns and parse JSON.
+	3. If the input looks like raw base64+gzip (no marker), try to decode & gunzip it.
+
+	Returns a parsed Python object on success, or None on failure.
+	"""
+
+	if game is None:
 		return None
 
-	# Decrypt
-	input_data = game
-	# if the data is bytes that already contains JSON (not encrypted), try to decode
+	# Normalize to string for inspection
+	input_str = None
+	if isinstance(game, bytes):
+		try:
+			input_str = game.decode('utf-8')
+		except Exception:
+			Log('admin', 'Failed to decode game data bytes to UTF-8')
+			return None
+	elif isinstance(game, str):
+		input_str = game
+	else:
+		# Unexpected type: coerce to str
+		try:
+			input_str = str(game)
+		except Exception:
+			return None
+
+	s = input_str.strip()
+
+	# Quick JSON check: if it already looks like JSON, try to parse it directly
+	if s.startswith('{') or s.startswith('[') or (s.startswith('"') and (len(s) > 1 and (s[1] == '{' or s[1] == '['))):
+		# remove surrounding quotes if present and unescape common escapes
+		if s.startswith('"') and s.endswith('"'):
+			s = s[1:-1]
+			s = s.replace('\\"', '"')
+		try:
+			return json.loads(s)
+		except Exception:
+			# not plain JSON; continue to try encoded formats
+			pass
+
+	# Look for marker &data=
+	index = s.find('&data=')
+	encoded_part = None
+	if index != -1:
+		encoded_part = s[index + 6:]
+	else:
+		# no marker; maybe the entire string is raw base64+gzip
+		encoded_part = s
+
+	# Try base64 decode + gzip decompress
 	try:
-		input_str = input_data.decode("utf-8")
+		array = base64.b64decode(encoded_part)
 	except Exception:
-		Log("admin", "Failed to decode game data bytes to UTF-8")
-		return None
-
-	index = input_str.find("&data=")
-	if index == -1:
-		Log("admin", "No encoded data marker found in game data")
-		return None
-
-	encoded_data = input_str[index + 6 :]
-	try:
-		array = base64.b64decode(encoded_data)
-	except Exception:
-		Log("admin", "Base64 decode failed for game data")
+		Log('admin', 'Base64 decode failed for game data')
 		return None
 
 	try:
 		with gzip.GzipFile(fileobj=BytesIO(array), mode='rb') as gz:
-			decoded_data = gz.read().decode("utf-8")
+			decoded_data = gz.read().decode('utf-8')
 	except Exception:
-		Log("admin", "Failed to decrypt game data")
+		Log('admin', 'Failed to gunzip/decompress game data')
 		return None
 
-	# attempt to clean json
+	# attempt to clean json (common simple repairs)
 	decoded_data = decoded_data.replace(',}', '}').replace(',],', '],').replace(',]', ']').replace(',,', ',')
 
-	return json.loads(decoded_data)
+	try:
+		return json.loads(decoded_data)
+	except Exception:
+		Log('admin', 'Decoded game data is not valid JSON')
+		return None
 
 @login_required
 @app.route("/admin/players/<player>/<action>")
