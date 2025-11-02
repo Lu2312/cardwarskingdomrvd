@@ -367,6 +367,12 @@ def AdminPlayers():
 	#convert player to dict
 	players = [player.as_dict() for player in players]
 
+	# Convert any bytes fields to string (e.g., multiplayer_name, game, etc.)
+	for player in players:
+		for key, value in player.items():
+			if isinstance(value, bytes):
+				player[key] = value.decode('utf-8')
+
 	#remove any players that do not have a multiplayer name
 	players = [player for player in players if player["game"] != None and player["leader_level"] != None]
 
