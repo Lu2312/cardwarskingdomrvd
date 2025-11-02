@@ -389,7 +389,7 @@ def AdminPlayers():
 	sortQuery = request.args.get('sort')
 
 	if sortQuery is not None:
-		players = sorted(players, key=lambda player: player[sortQuery], reverse=True)
+		players = sorted(players, key=lambda player: str(player[sortQuery] or ''), reverse=True)
 	else:
 		players = players[::-1]
 
