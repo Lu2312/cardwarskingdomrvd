@@ -962,7 +962,7 @@ def IPFromRequest(request:Request):
 
 class Player(db.Model):
 	username = db.Column(db.String(80), primary_key=True, unique=True, nullable=False)
-	game = db.Column(db.String(8192), nullable=True)
+	game = db.Column(db.Text(), nullable=True)
 	multiplayer_name = db.Column(db.String(128), nullable=True)
 	icon = db.Column(db.String(128), nullable=True)
 	deck = db.Column(db.String(1024), nullable=True)
@@ -973,8 +973,8 @@ class Player(db.Model):
 	leader_level = db.Column(db.Integer, nullable=True)
 	allyboxspace = db.Column(db.Integer, nullable=True)
 	level = db.Column(db.Integer, nullable=True)
-	friends = db.Column(db.String(8192), nullable=True, default="[]")
-	friend_requests = db.Column(db.String(8192), nullable=True, default="[]")
+	friends = db.Column(db.Text(), nullable=True, default="[]")
+	friend_requests = db.Column(db.Text(), nullable=True, default="[]")
 	last_online = db.Column(db.Integer, nullable=True, default=int(time.time()))
 	helpcount = db.Column(db.Integer, nullable=True, default=0)
 	anonymoushelpcount = db.Column(db.Integer, nullable=True, default=0)
