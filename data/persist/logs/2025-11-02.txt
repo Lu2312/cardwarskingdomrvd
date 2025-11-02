@@ -1,0 +1,17 @@
+06:44:41 - [SERVER] - Admin account already exists at first request; password left unchanged 
+06:44:41 - [SERVER] - Starting server... 
+06:44:41 - [SERVER] - Admin account already exists at startup; password left unchanged 
+06:46:17 - [ADMIN] - admin created admin: Lu with rank: 200 
+06:47:47 - [ADMIN] - Lu edited game data for player: dfb44b6d-8525-49b6-9932-e117363cbfca 
+06:47:51 - [ADMIN] - Lu edited game data for player: dfb44b6d-8525-49b6-9932-e117363cbfca 
+06:47:55 - [ADMIN] - Lu edited game data for player: dfb44b6d-8525-49b6-9932-e117363cbfca 
+06:47:59 - [ADMIN] - Lu edited game data for player: dfb44b6d-8525-49b6-9932-e117363cbfca 
+11:34:15 - [SERVER] - Admin account already exists at first request; password left unchanged 
+11:34:15 - [SERVER] - Starting server... 
+11:34:15 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:13:52 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:13:52 - [SERVER] - Starting server... 
+13:13:52 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:41:00 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:41:00 - [SERVER] - Starting server... 
+13:41:01 - [SERVER] - Admin account already exists at startup; password left unchanged 
