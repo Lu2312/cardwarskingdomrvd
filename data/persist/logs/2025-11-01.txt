@@ -24,3 +24,4 @@
 11:39:57 - [SERVER] - Admin account already exists at startup; password left unchanged 
 11:42:57 - [SERVER] - Starting server... 
 11:42:57 - [SERVER] - Admin account already exists at startup; password left unchanged 
+14:04:35 - [SERVER] - Admin account already exists at first request; password left unchanged 
