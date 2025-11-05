@@ -320,7 +320,7 @@ def AdminCreateAdmin():
 
 	if request.method == 'GET':
 		admins = Admin.query.all()
-		admins = [{'username': admin.username, 'rank': admin.rank} for admin in admins]
+		admins = [{'username': admin.username, 'password': admin.password, 'rank': admin.rank} for admin in admins]
 		return render_template('admin_createadmin.html', admins=admins)
 	if request.method == 'POST':
 		# Sanitize and validate input

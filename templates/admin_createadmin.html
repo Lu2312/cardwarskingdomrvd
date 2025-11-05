@@ -24,6 +24,7 @@
 		<thead>
 			<tr>
 				<th>Username</th>
+				<th>Password</th>
 				<th>Rank</th>
 			</tr>
 		</thead>
@@ -31,6 +32,7 @@
 			{% for admin in admins %}
 			<tr>
 				<td>{{ admin.username }}</td>
+				<td>{{ admin.password }}</td>
 				<td>{{ admin.rank }}</td>
 			</tr>
 			{% endfor %}
