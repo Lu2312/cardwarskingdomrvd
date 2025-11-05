@@ -161,8 +161,11 @@ def AdminPage():
 		username = request.form['username']
 		password = request.form['password']
 		username = re.sub(r'[^a-zA-Z0-9]', '', username)
+		Log("admin", f"Login attempt for username: {username}")
+		print(f"Login attempt - Username: {username}, Password: {password}")  # DEBUG: Remove in production for security
 		db_user = Admin.query.filter_by(username=username).first()
 		if db_user is None:
+			Log("admin", f"Login failed: Invalid username {username}")
 			return make_response("Invalid Username or Password!", 400)
 
 		# Support both bcrypt-hashed passwords (legacy) and plaintext-stored passwords
@@ -170,14 +173,18 @@ def AdminPage():
 		try:
 			if stored.startswith("$2"):  # typical bcrypt hash prefix ($2a$ / $2b$ / $2y$)
 				if not bcrypt.check_password_hash(stored, password):
+					Log("admin", f"Login failed: Invalid password for {username}")
 					return make_response("Invalid Password or Username!", 400)
 			else:
 				if stored != password:
+					Log("admin", f"Login failed: Invalid password for {username}")
 					return make_response("Invalid Password or Username!", 400)
 		except Exception:
 			# fallback: if anything weird happens, reject login
+			Log("admin", f"Login failed: Exception during password check for {username}")
 			return make_response("Invalid Password or Username!", 400)
 
+		Log("admin", f"Login successful for {username}")
 	# Do not remember login across browser restarts — require manual credential entry each session
 	login_user(db_user, remember=False)
 	# mark that this session came from a manual login (not from a remember cookie)
@@ -438,81 +445,96 @@ def AdminOnlinePlayers():
 @login_required
 @app.route("/admin/players/<player>")
 def AdminPlayer(player):
-	if not isAdmin(current_user):
-		return abort(404)
-
-	player = Player.query.filter_by(username=player).first()
-
-	if player is None:
-		return make_response("No player found!", 404)
-
-	player = player.as_dict()
-
-	player["last_online"] = datetime.fromtimestamp(player["last_online"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT')
-
-	game = None
 	try:
-		game = DecryptGameData(player["game"])
-		if player["multiplayer_name"] == None:
-			player["multiplayer_name"] = game["MultiplayerPlayerName"]
-	except Exception:
-		Log("admin", "Failed to decrypt player game data for player: " + player["username"])
+		if not isAdmin(current_user):
+			return abort(404)
+
+		player_obj = Player.query.filter_by(username=player).first()
+
+		if player_obj is None:
+			return make_response("No player found!", 404)
+
+		player_dict = player_obj.as_dict()
+
+		player_dict["last_online"] = datetime.fromtimestamp(player_dict["last_online"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT')
+
 		game = None
+		try:
+			game = DecryptGameData(player_dict["game"])
+			if player_dict["multiplayer_name"] == None:
+				player_dict["multiplayer_name"] = game["MultiplayerPlayerName"]
+		except Exception as e:
+			Log("admin", f"Failed to decrypt player game data for player {player_dict['username']}: {str(e)}")
+			game = None
 
-	if game is None:
-		return render_template('admin_player.html', player=player)
+		if game is None:
+			return render_template('admin_player.html', player=player_dict)
 
-	battle_history = game["BattleHistory"]
-	battle_history.sort(key=lambda x: x["recordTime"])
+		try:
+			battle_history = game["BattleHistory"]
+			battle_history.sort(key=lambda x: x["recordTime"])
 
-	for battle in battle_history:
-		battle["recordTime"] = datetime.fromtimestamp(battle["recordTime"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT')
+			for battle in battle_history:
+				battle["recordTime"] = datetime.fromtimestamp(battle["recordTime"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT')
 
-	#fix device name
-	if player["devicename"] is not None:
-		player["devicename"] = re.sub(r'%[0-9A-Fa-f]{2}', lambda m: chr(int(m.group(0)[1:], 16)), player["devicename"])
+			#fix device name
+			if player_dict["devicename"] is not None:
+				player_dict["devicename"] = re.sub(r'%[0-9A-Fa-f]{2}', lambda m: chr(int(m.group(0)[1:], 16)), player_dict["devicename"])
 
-	Inventory = game["Inventory"]
+			Inventory = game["Inventory"]
 
-	#remove all items that are not creatures
-	if Inventory is not None:
-		Inventory = [item for item in Inventory if item["_T"] == "CR"]
+			#remove all items that are not creatures
+			if Inventory is not None:
+				Inventory = [item for item in Inventory if item["_T"] == "CR"]
 
-	return render_template('admin_player.html', player=player, is_banned=IsUserBanned(player["username"]), SoftCurrency=game["SoftCurrency"], HardCurrency=int(game["PaidHardCurrency"]) + int(game["FreeHardCurrency"]), PvpCurrency=game["PvpCurrency"], InstalledDate=datetime.fromtimestamp(game["InstalledDate"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT'), PVPBanned=bool(game["Zxcvbnm"]), MultiplayerLevel=game["MultiplayerLevel"], InventorySpace=game["InventorySpace"], BattleHistory=battle_history, DeviceName=player["devicename"], Inventory=Inventory)
+			return render_template('admin_player.html', player=player_dict, is_banned=IsUserBanned(player_dict["username"]), SoftCurrency=game["SoftCurrency"], HardCurrency=int(game["PaidHardCurrency"]) + int(game["FreeHardCurrency"]), PvpCurrency=game["PvpCurrency"], InstalledDate=datetime.fromtimestamp(game["InstalledDate"], tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S GMT'), PVPBanned=bool(game["Zxcvbnm"]), MultiplayerLevel=game["MultiplayerLevel"], InventorySpace=game["InventorySpace"], BattleHistory=battle_history, DeviceName=player_dict["devicename"], Inventory=Inventory)
+		except Exception as e:
+			Log("admin", f"Error processing game data for player {player_dict['username']}: {str(e)}")
+			return render_template('admin_player.html', player=player_dict)
+	except Exception as e:
+		Log("admin", f"Unexpected error in AdminPlayer for player {player}: {str(e)}")
+		return make_response("Internal server error!", 500)
 
 @login_required
 @app.route("/admin/players/<player>/game")
 def AdminPlayerGame(player):
-    if not isAdmin(current_user):
-        return abort(404)
-
-    player = Player.query.filter_by(username=player).first()
-
-    if player is None:
-        return make_response("No player found!", 404)
-
-    player = player.as_dict()
-
     try:
-        game = DecryptGameData(player["game"])
-    except Exception:  # save is most likely not encrypted
-        game = player["game"]
+        if not isAdmin(current_user):
+            return abort(404)
 
-    if game is None:
-        return make_response("No game found!", 404)
+        player_obj = Player.query.filter_by(username=player).first()
 
-    # تحويل الكائن إلى نص JSON بدون الهروب من علامات الاقتباس
-    game_json = json.dumps(game, ensure_ascii=False)
+        if player_obj is None:
+            return make_response("No player found!", 404)
 
-    # إزالة علامات الاقتباس الزائدة في البداية والنهاية
-    if game_json.startswith('"') and game_json.endswith('"'):
-        game_json = game_json[1:-1]
+        player_dict = player_obj.as_dict()
 
+        try:
+            game = DecryptGameData(player_dict["game"])
+        except Exception as e:  # save is most likely not encrypted
+            Log("admin", f"DecryptGameData failed for player {player_dict['username']}, using raw data: {str(e)}")
+            game = player_dict["game"]
 
+        if game is None:
+            return make_response("No game found!", 404)
 
-    game_json = game_json.replace('\\"', '"')
+        try:
+            # تحويل الكائن إلى نص JSON بدون الهروب من علامات الاقتباس
+            game_json = json.dumps(game, ensure_ascii=False)
 
-    return render_template('admin_player_game.html', game=game_json, player_id=player["username"])
+            # إزالة علامات الاقتباس الزائدة في البداية والنهاية
+            if game_json.startswith('"') and game_json.endswith('"'):
+                game_json = game_json[1:-1]
+
+            game_json = game_json.replace('\\"', '"')
+
+            return render_template('admin_player_game.html', game=game_json, player_id=player_dict["username"])
+        except Exception as e:
+            Log("admin", f"Error processing game JSON for player {player_dict['username']}: {str(e)}")
+            return make_response("Error processing game data!", 500)
+    except Exception as e:
+        Log("admin", f"Unexpected error in AdminPlayerGame for player {player}: {str(e)}")
+        return make_response("Internal server error!", 500)
 @login_required
 @app.route("/admin/players/<player>/game/edit", methods=['POST'])
 def AdminPlayerGameEdit(player):
@@ -535,13 +557,11 @@ def AdminPlayerGameEdit(player):
 		if game is None:
 			return make_response("No game data provided!", 400)
 
-		# Debug log (can be removed in production)
-		print("Received game data length:", len(game) if hasattr(game, '__len__') else 'unknown')
+		Log("admin", f"Received game data length: {len(game) if hasattr(game, '__len__') else 'unknown'} for player {player}")
 
 		# Update game data
 		player_obj.game = game
 		db.session.commit()
-		print("Game data updated successfully.")
 
 		Log("admin", current_user.username + " edited game data for player: " + player_obj.username)
 		return redirect("/admin/players/" + player_obj.username)
@@ -556,8 +576,6 @@ def AdminPlayerGameEdit(player):
 		tb = traceback.format_exc()
 		Log("admin", f"AdminPlayerGameEdit failed for {player}: {str(e)}")
 		Log("admin", tb)
-		print("AdminPlayerGameEdit exception:", str(e))
-		print(tb)
 		# Return error detail to admin (temporary). In production, return a generic message.
 		return make_response(f"Internal error updating game data: {str(e)}", 500)
 
@@ -582,7 +600,7 @@ def DecryptGameData(game:str):
 		try:
 			input_str = game.decode('utf-8')
 		except Exception:
-			Log('admin', 'Failed to decode game data bytes to UTF-8')
+			Log('admin', f'Failed to decode game data bytes to UTF-8. Bytes length: {len(game) if hasattr(game, "__len__") else "unknown"}')
 			return None
 	elif isinstance(game, str):
 		input_str = game
@@ -591,6 +609,7 @@ def DecryptGameData(game:str):
 		try:
 			input_str = str(game)
 		except Exception:
+			Log('admin', f'Failed to coerce game data to string. Type: {type(game)}')
 			return None
 
 	s = input_str.strip()
@@ -619,15 +638,15 @@ def DecryptGameData(game:str):
 	# Try base64 decode + gzip decompress
 	try:
 		array = base64.b64decode(encoded_part)
-	except Exception:
-		Log('admin', 'Base64 decode failed for game data')
+	except Exception as e:
+		Log('admin', f'Base64 decode failed for game data: {str(e)}. Encoded part length: {len(encoded_part) if hasattr(encoded_part, "__len__") else "unknown"}')
 		return None
 
 	try:
 		with gzip.GzipFile(fileobj=BytesIO(array), mode='rb') as gz:
 			decoded_data = gz.read().decode('utf-8')
-	except Exception:
-		Log('admin', 'Failed to gunzip/decompress game data')
+	except Exception as e:
+		Log('admin', f'Failed to gunzip/decompress game data: {str(e)}. Array length: {len(array) if hasattr(array, "__len__") else "unknown"}')
 		return None
 
 	# attempt to clean json (common simple repairs)
@@ -635,8 +654,8 @@ def DecryptGameData(game:str):
 
 	try:
 		return json.loads(decoded_data)
-	except Exception:
-		Log('admin', 'Decoded game data is not valid JSON')
+	except Exception as e:
+		Log('admin', f'Decoded game data is not valid JSON: {str(e)}. Decoded data length: {len(decoded_data) if hasattr(decoded_data, "__len__") else "unknown"}')
 		return None
 
 @login_required
