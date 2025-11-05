@@ -16,4 +16,24 @@
 		<br>
 		<button type="submit" class="btn btn-primary">Create</button>
 	</form>
+
+	<hr>
+
+	<h2>Existing Admins</h2>
+	<table class="table table-striped">
+		<thead>
+			<tr>
+				<th>Username</th>
+				<th>Rank</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for admin in admins %}
+			<tr>
+				<td>{{ admin.username }}</td>
+				<td>{{ admin.rank }}</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
 {% endblock %}

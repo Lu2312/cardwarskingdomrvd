@@ -319,7 +319,9 @@ def AdminCreateAdmin():
 		return abort(404)
 
 	if request.method == 'GET':
-		return render_template('admin_createadmin.html')
+		admins = Admin.query.all()
+		admins = [admin.as_dict() for admin in admins]
+		return render_template('admin_createadmin.html', admins=admins)
 	if request.method == 'POST':
 		# Sanitize and validate input
 		username = request.form.get('username', '').strip()
