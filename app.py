@@ -320,8 +320,19 @@ def AdminCreateAdmin():
 
 	if request.method == 'GET':
 		admins = Admin.query.all()
-		admins = [{'username': admin.username, 'password': admin.password, 'rank': admin.rank} for admin in admins]
-		return render_template('admin_createadmin.html', admins=admins)
+		admin_list = []
+		for admin in admins:
+			# Try to check if password is bcrypt hashed
+			password_display = admin.password
+			if admin.password and admin.password.startswith("$2"):
+				# For bcrypt hashes, show a placeholder since we can't decrypt
+				password_display = "[BCRYPT HASHED]"
+			admin_list.append({
+				'username': admin.username,
+				'password': password_display,
+				'rank': admin.rank
+			})
+		return render_template('admin_createadmin.html', admins=admin_list)
 	if request.method == 'POST':
 		# Sanitize and validate input
 		username = request.form.get('username', '').strip()
