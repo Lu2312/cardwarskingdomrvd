@@ -406,6 +406,11 @@ def AdminPlayers():
 		if player["multiplayer_name"] == None:
 			player["multiplayer_name"] = GetNameFromSave(player["game"])
 
+	search_query = request.args.get('search', '').strip()
+
+	if search_query:
+		players = [p for p in players if search_query.lower() in p.get('username', '').lower() or search_query.lower() in p.get('multiplayer_name', '').lower()]
+
 	sortQuery = request.args.get('sort')
 
 	if sortQuery is not None:
@@ -413,7 +418,7 @@ def AdminPlayers():
 	else:
 		players = players[::-1]
 
-	return render_template('admin_players.html', players=players, player_count=len(players))
+	return render_template('admin_players.html', players=players, player_count=len(players), search_query=search_query)
 
 def GetNameFromSave(save):
 
@@ -532,16 +537,7 @@ def AdminPlayerGame(player):
             return make_response("No game found!", 404)
 
         try:
-            # تحويل الكائن إلى نص JSON بدون الهروب من علامات الاقتباس
-            game_json = json.dumps(game, ensure_ascii=False)
-
-            # إزالة علامات الاقتباس الزائدة في البداية والنهاية
-            if game_json.startswith('"') and game_json.endswith('"'):
-                game_json = game_json[1:-1]
-
-            game_json = game_json.replace('\\"', '"')
-
-            return render_template('admin_player_game.html', game=game_json, player_id=player_dict["username"])
+            return render_template('admin_player_game.html', game=game, player_id=player_dict["username"])
         except Exception as e:
             Log("admin", f"Error processing game JSON for player {player_dict['username']}: {str(e)}")
             return make_response("Error processing game data!", 500)
@@ -1017,7 +1013,7 @@ class Player(db.Model):
 
 @app.route("/")
 def Index():
-	return "200 App server running"
+	return "200 App server running Cardwars Kingdom"
 
 @app.route("/persist/static/manifest.json")
 def Manifest():

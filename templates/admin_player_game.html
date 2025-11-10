@@ -1,57 +1,52 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Player Game</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f4f4;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        textarea {
-            width: 100%;
-            box-sizing: border-box;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 10px;
-            font-size: 14px;
-        }
-        input[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            margin: 10px 0;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        input[type="submit"]:hover {
-            background-color: #45a049;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Edit Player Game</h1>
-        <form action="/admin/players/{{player_id}}/game/edit" method="post">
-            <textarea rows="20" name="player_game">{{game}}</textarea>
-            <br>
-            <input type="submit" value="Save">
-        </form>
+{% extends "admin_base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Edit Player Game - {{ player_id }}</h1>
+</div>
+
+<div class="alert alert-warning">
+    <strong>Warning:</strong> Editing the game data directly can break the player's save. Make sure you know what you're doing!
+</div>
+
+<form action="/admin/players/{{player_id}}/game/edit" method="post">
+    <input type="hidden" id="player_game" name="player_game" value="{{game}}">
+    {% set game_obj = game %}
+    {% for key, value in game_obj.items() %}
+    <div class="mb-3">
+        <label for="player_game_{{key}}" class="form-label">{{key}} (JSON)</label>
+        <textarea class="form-control game-section" id="player_game_{{key}}" rows="1" style="font-family: 'Courier New', monospace; font-size: 12px; resize: vertical; min-height: 2em;">{{value | tojson(indent=2)}}</textarea>
     </div>
-</body>
-</html>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+    <a href="/admin/players/{{player_id}}" class="btn btn-secondary">Cancel</a>
+</form>
+
+<script>
+// Simple JSON validation on form submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    const hiddenInput = document.getElementById('player_game');
+    const sections = document.querySelectorAll('.game-section');
+    const gameObj = {};
+
+    sections.forEach(section => {
+        const key = section.id.replace('player_game_', '');
+        try {
+            gameObj[key] = JSON.parse(section.value);
+        } catch (error) {
+            if (!confirm('The JSON for section "' + key + '" appears to be invalid. Are you sure you want to save? Error: ' + error.message)) {
+                e.preventDefault();
+                return;
+            }
+            // If user confirms, still try to parse or keep as string
+            try {
+                gameObj[key] = JSON.parse(section.value);
+            } catch {
+                gameObj[key] = section.value;
+            }
+        }
+    });
+
+    hiddenInput.value = JSON.stringify(gameObj);
+});
+</script>
+{% endblock %}
