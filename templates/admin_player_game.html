@@ -11,12 +11,12 @@
 <form action="/admin/players/{{player_id}}/game/edit" method="post">
     <div class="mb-3">
         <label for="full_game" class="form-label">Full Game JSON</label>
-        <textarea class="form-control" id="full_game" name="full_player_game" rows="20" style="font-family: 'Courier New', monospace; font-size: 12px; resize: vertical;">{{game | tojson(indent=2)}}</textarea>
+        <textarea class="form-control" id="full_game" name="full_player_game" rows="20" style="font-family: 'Courier New', monospace; font-size: 12px; resize: vertical;">{{game}}</textarea>
     </div>
     <button type="submit" class="btn btn-primary">Save Full Game</button>
     <hr>
     <input type="hidden" id="player_game" name="player_game" value="{{game}}">
-    {% set game_obj = game %}
+    {% if game_obj %}
     {% for key, value in game_obj.items() %}
     <div class="mb-3">
         <label for="player_game_{{key}}" class="form-label">{{key}} (JSON)</label>
@@ -24,6 +24,9 @@
     </div>
     {% endfor %}
     <button type="submit" class="btn btn-primary">Save Changes</button>
+    {% else %}
+    <p class="text-muted">Full game editor only (game data could not be parsed into sections)</p>
+    {% endif %}
     <a href="/admin/players/{{player_id}}" class="btn btn-secondary">Cancel</a>
 </form>
 

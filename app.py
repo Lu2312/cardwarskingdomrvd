@@ -415,7 +415,14 @@ def AdminPlayers():
 	sortQuery = request.args.get('sort')
 
 	if sortQuery is not None:
-		players = sorted(players, key=lambda player: str(player[sortQuery] or ''), reverse=True)
+		try:
+			# Use .get() to safely access the key; default to empty string if missing/None
+			players = sorted(players, key=lambda player: str(player.get(sortQuery) or ''), reverse=True)
+		except Exception as e:
+			Log("admin", f"Error sorting players by {sortQuery}: {str(e)}")
+			print(f"Error sorting players by {sortQuery}: {str(e)}")
+			# Fall back to reverse order if sort fails
+			players = players[::-1]
 	else:
 		players = players[::-1]
 
@@ -537,8 +544,14 @@ def AdminPlayerGame(player):
         if game is None:
             return make_response("No game found!", 404)
 
+        # If game is a dict (parsed JSON), serialize it to string for the textarea
+        if isinstance(game, dict):
+            game_str = json.dumps(game, indent=2, ensure_ascii=False)
+        else:
+            game_str = str(game)
+
         try:
-            return render_template('admin_player_game.html', game=game, player_id=player_dict["username"])
+            return render_template('admin_player_game.html', game=game_str, game_obj=game if isinstance(game, dict) else None, player_id=player_dict["username"])
         except Exception as e:
             Log("admin", f"Error processing game JSON for player {player_dict['username']}: {str(e)}")
             return make_response("Error processing game data!", 500)
@@ -563,14 +576,31 @@ def AdminPlayerGameEdit(player):
 			return make_response("No player found!", 404)
 
 		# Get game data from POST request
-		game = request.form.get('full_player_game') or request.form.get('player_game')
-		if game is None:
+		game_data = request.form.get('full_player_game') or request.form.get('player_game')
+		if game_data is None:
 			return make_response("No game data provided!", 400)
 
-		Log("admin", f"Received game data length: {len(game) if hasattr(game, '__len__') else 'unknown'} for player {player}")
+		Log("admin", f"Received game data length: {len(game_data) if hasattr(game_data, '__len__') else 'unknown'} for player {player}")
+
+		# If the received data looks like plain JSON (starts with { or [), 
+		# we need to re-encode it to the format the game client expects:
+		# username=<player>&data=<base64(gzip(json))>
+		game_to_save = game_data
+		try:
+			# Try to parse as JSON
+			parsed = json.loads(game_data)
+			# If successful, re-encode it
+			json_str = json.dumps(parsed, separators=(',', ':'), ensure_ascii=False)
+			compressed = gzip.compress(json_str.encode('utf-8'))
+			encoded = base64.b64encode(compressed).decode('utf-8')
+			game_to_save = f"username={player}&data={encoded}"
+			Log("admin", f"Re-encoded plain JSON to encrypted format for player {player}")
+		except Exception:
+			# Not plain JSON or already encoded; save as-is
+			pass
 
 		# Update game data
-		player_obj.game = game
+		player_obj.game = game_to_save
 		db.session.commit()
 
 		Log("admin", current_user.username + " edited game data for player: " + player_obj.username)
