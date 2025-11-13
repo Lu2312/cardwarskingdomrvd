@@ -1,0 +1,17 @@
+17:21:16 - [SERVER] - Admin account already exists at first request; password left unchanged 
+17:21:16 - [SERVER] - Starting server... 
+17:21:17 - [SERVER] - Admin account already exists at startup; password left unchanged 
+17:26:53 - [ADMIN] - Login attempt for username: admin 
+17:26:54 - [ADMIN] - Login successful for admin 
+17:34:34 - [SERVER] - Admin account already exists at first request; password left unchanged 
+17:34:34 - [SERVER] - Starting server... 
+17:34:34 - [SERVER] - Admin account already exists at startup; password left unchanged 
+17:40:48 - [SERVER] - Admin account already exists at first request; password left unchanged 
+17:40:48 - [SERVER] - Starting server... 
+17:40:48 - [SERVER] - Admin account already exists at startup; password left unchanged 
+17:46:53 - [SERVER] - Admin account already exists at first request; password left unchanged 
+17:46:53 - [SERVER] - Starting server... 
+17:46:53 - [SERVER] - Admin account already exists at startup; password left unchanged 
+17:49:51 - [SERVER] - Admin account already exists at first request; password left unchanged 
+17:49:52 - [SERVER] - Starting server... 
+17:49:52 - [SERVER] - Admin account already exists at startup; password left unchanged 

@@ -1,0 +1,28 @@
+11:53:44 - [SERVER] - Admin account already exists at first request; password left unchanged 
+11:53:44 - [SERVER] - Starting server... 
+11:53:44 - [SERVER] - Admin account already exists at startup; password left unchanged 
+11:54:42 - [ADMIN] - Login attempt for username: admin 
+11:54:42 - [ADMIN] - Login successful for admin 
+11:54:49 - [ADMIN] - Error processing game JSON for player d791b3f6-0672-41c1-b284-e7b5585cc601: No filter named 'fromjson'. 
+12:26:37 - [SERVER] - Admin account already exists at first request; password left unchanged 
+12:26:37 - [SERVER] - Starting server... 
+12:26:37 - [SERVER] - Admin account already exists at startup; password left unchanged 
+12:28:27 - [ADMIN] - Login attempt for username: admin 
+12:28:28 - [ADMIN] - Login successful for admin 
+13:14:27 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:14:27 - [SERVER] - Starting server... 
+13:14:27 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:14:55 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:14:55 - [SERVER] - Starting server... 
+13:14:55 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:19:58 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:19:58 - [SERVER] - Starting server... 
+13:19:59 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:28:56 - [SERVER] - Admin account already exists at first request; password left unchanged 
+13:28:56 - [SERVER] - Starting server... 
+13:28:57 - [SERVER] - Admin account already exists at startup; password left unchanged 
+13:30:14 - [ADMIN] - Received game data length: 29109 for player d791b3f6-0672-41c1-b284-e7b5585cc601 
+13:30:14 - [ADMIN] - admin edited game data for player: d791b3f6-0672-41c1-b284-e7b5585cc601 
+14:11:04 - [SERVER] - Admin account already exists at first request; password left unchanged 
+14:11:04 - [SERVER] - Starting server... 
+14:11:04 - [SERVER] - Admin account already exists at startup; password left unchanged 

@@ -16,14 +16,40 @@
 
 	<hr>
 
-	<p>ID: {{ player.username }}</p>
-	<p>Device Name: {{ DeviceName }}</p>
-	<p>Rank: {{ player.leader_level }}</p>
-	<p>Last Online: {{ player.last_online }}</p>
-	<p>Help Count: {{ player.helpcount }}</p>
-	<p>Annonyous Help Count: {{ player.anonymoushelpcount }}</p>
-	<p>Ally Box Space: {{ player.allyboxspace }}</p>
-	<p>Helper: {{ player.helper_creature }}</p>
+	<div class="row">
+		<div class="col-md-6">
+			<h4>Player Info</h4>
+			<dl class="row">
+				<dt class="col-sm-5">ID:</dt>
+				<dd class="col-sm-7">{{ player.username }}</dd>
+
+				<dt class="col-sm-5">Device Name:</dt>
+				<dd class="col-sm-7">{{ DeviceName }}</dd>
+
+				<dt class="col-sm-5">Rank:</dt>
+				<dd class="col-sm-7">{{ player.leader_level }}</dd>
+
+				<dt class="col-sm-5">Last Online:</dt>
+				<dd class="col-sm-7">{{ player.last_online }}</dd>
+			</dl>
+		</div>
+		<div class="col-md-6">
+			<h4>Game Stats</h4>
+			<dl class="row">
+				<dt class="col-sm-5">Help Count:</dt>
+				<dd class="col-sm-7">{{ player.helpcount }}</dd>
+
+				<dt class="col-sm-5">Anonymous Help Count:</dt>
+				<dd class="col-sm-7">{{ player.anonymoushelpcount }}</dd>
+
+				<dt class="col-sm-5">Ally Box Space:</dt>
+				<dd class="col-sm-7">{{ player.allyboxspace }}</dd>
+
+				<dt class="col-sm-5">Helper:</dt>
+				<dd class="col-sm-7">{{ player.helper_creature }}</dd>
+			</dl>
+		</div>
+	</div>
 
 	<h3>Save:</h3>
 	<div class="table-responsive small">

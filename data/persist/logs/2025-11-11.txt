@@ -1,0 +1,5 @@
+11:28:28 - [SERVER] - Admin account already exists at first request; password left unchanged 
+11:28:28 - [SERVER] - Starting server... 
+11:28:29 - [SERVER] - Admin account already exists at startup; password left unchanged 
+11:28:42 - [ADMIN] - Login attempt for username: admin 
+11:28:43 - [ADMIN] - Login successful for admin 

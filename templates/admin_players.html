@@ -4,16 +4,23 @@
 		<h1 class="h2">All {{ player_count }} players</h1>
 	</div>
 
+	<form method="GET" action="/admin/players" class="mb-3">
+		<div class="input-group">
+			<input type="text" name="search" class="form-control" placeholder="Search by username or multiplayer name" value="{{ search_query }}">
+			<button class="btn btn-outline-secondary" type="submit">Search</button>
+		</div>
+	</form>
+
 	<div class="dropdown show">
 		<a class="btn btn-secondary dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle='dropdown' aria-haspopup="true" aria-expanded="false">
 			Sort by
 		</a>
-	  
+
 		<div class="dropdown-menu" aria-labelledby="dropdownMenuLink">
-			<a class="dropdown-item" href ="/admin/players">Creation Date</a>
-			<a class="dropdown-item" href ="/admin/players?sort=multiplayer_name">Name</a>
-			<a class="dropdown-item" href="/admin/players?sort=last_online">Last online</a>
-			<a class="dropdown-item" href ="/admin/players?sort=leader_level">Rank</a>
+			<a class="dropdown-item" href="/admin/players{% if search_query %}?search={{ search_query }}{% endif %}">Creation Date</a>
+			<a class="dropdown-item" href="/admin/players?sort=multiplayer_name{% if search_query %}&search={{ search_query }}{% endif %}">Name</a>
+			<a class="dropdown-item" href="/admin/players?sort=last_online{% if search_query %}&search={{ search_query }}{% endif %}">Last online</a>
+			<a class="dropdown-item" href="/admin/players?sort=leader_level{% if search_query %}&search={{ search_query }}{% endif %}">Rank</a>
 		</div>
 	</div>
 
