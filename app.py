@@ -563,7 +563,7 @@ def AdminPlayerGameEdit(player):
 			return make_response("No player found!", 404)
 
 		# Get game data from POST request
-		game = request.form.get('player_game')
+		game = request.form.get('full_player_game') or request.form.get('player_game')
 		if game is None:
 			return make_response("No game data provided!", 400)
 

@@ -9,6 +9,12 @@
 </div>
 
 <form action="/admin/players/{{player_id}}/game/edit" method="post">
+    <div class="mb-3">
+        <label for="full_game" class="form-label">Full Game JSON</label>
+        <textarea class="form-control" id="full_game" name="full_player_game" rows="20" style="font-family: 'Courier New', monospace; font-size: 12px; resize: vertical;">{{game | tojson(indent=2)}}</textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Save Full Game</button>
+    <hr>
     <input type="hidden" id="player_game" name="player_game" value="{{game}}">
     {% set game_obj = game %}
     {% for key, value in game_obj.items() %}
