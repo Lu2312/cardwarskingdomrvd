@@ -410,7 +410,7 @@ def AdminPlayers():
 	search_query = request.args.get('search', '').strip()
 
 	if search_query:
-		players = [p for p in players if search_query.lower() in p.get('username', '').lower() or search_query.lower() in p.get('multiplayer_name', '').lower()]
+		players = [p for p in players if search_query.lower() in (p.get('username') or '').lower() or search_query.lower() in (p.get('multiplayer_name') or '').lower()]
 
 	sortQuery = request.args.get('sort')
 
